@@ -1,8 +1,24 @@
-// app/interviewee/page.js
+"use client";
+
 import FileUpload from "../../components/FileUpolad";
 import CandidateInfo from "../../components/CandidateInfo";
+import Chat from "../../components/Chat";
+import useCandidateStore from "../../store/candidateStore";
+import { useState, useEffect } from "react";
 
 export default function IntervieweePage() {
+  const candidate = useCandidateStore((s) => s.candidateData);
+  const [showChat, setShowChat] = useState(false);
+
+  // Show chat only if resume uploaded AND some info is missing
+  useEffect(() => {
+    const missingFields = ["name", "email", "phone"].filter(
+      (f) => !candidate[f] || candidate[f].toString().trim() === ""
+    );
+    // Show chat only if some missing AND rawText exists (resume uploaded)
+    setShowChat(candidate.rawText && missingFields.length > 0);
+  }, [candidate]);
+
   return (
     <div className="min-h-screen bg-gray-100 py-8">
       <div className="container mx-auto px-4">
@@ -18,9 +34,9 @@ export default function IntervieweePage() {
         </div>
 
         {/* Main Content */}
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-4xl mx-auto space-y-6">
           {/* Upload Section */}
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-800 mb-4 text-center">
               Upload Your Resume
             </h2>
@@ -29,6 +45,16 @@ export default function IntervieweePage() {
 
           {/* Results Section */}
           <CandidateInfo />
+
+          {/* Chat Section: only show if some info missing after upload */}
+          {showChat && (
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <h2 className="text-xl font-semibold text-gray-800 mb-4 text-center">
+                Complete Your Profile
+              </h2>
+              <Chat />
+            </div>
+          )}
         </div>
 
         {/* Instructions */}
@@ -48,7 +74,7 @@ export default function IntervieweePage() {
 
         {/* Footer */}
         <div className="text-center mt-12 text-sm text-gray-500">
-          <p>Powered by Next.js • Built for Sprint 2</p>
+          <p>Powered by Next.js • Built for Sprint 3</p>
         </div>
       </div>
     </div>

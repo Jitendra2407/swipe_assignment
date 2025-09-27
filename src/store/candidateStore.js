@@ -1,4 +1,3 @@
-// store/candidateStore.js
 import { create } from "zustand";
 
 const useCandidateStore = create((set) => ({
@@ -9,18 +8,34 @@ const useCandidateStore = create((set) => ({
     phone: "",
     rawText: "",
   },
+  messages: [], // for chat messages
   isLoading: false,
   error: null,
 
   // Actions
+  // Replace entire candidate data (used after resume parsing)
   setCandidateData: (data) =>
     set({
       candidateData: data,
       error: null,
     }),
 
-  setLoading: (loading) => set({ isLoading: loading }),
+  // Update single field (used by chat)
+  setCandidateField: (field, value) =>
+    set((state) => ({
+      candidateData: { ...state.candidateData, [field]: value },
+    })),
 
+  // Chat messages actions
+  addMessage: (msg) =>
+    set((state) => ({
+      messages: [...state.messages, { ...msg, createdAt: Date.now() }],
+    })),
+
+  resetChat: () => set({ messages: [] }),
+
+  // Loading / error actions
+  setLoading: (loading) => set({ isLoading: loading }),
   setError: (error) =>
     set({
       error,
@@ -35,6 +50,7 @@ const useCandidateStore = create((set) => ({
         phone: "",
         rawText: "",
       },
+      messages: [],
       error: null,
       isLoading: false,
     }),
