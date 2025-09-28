@@ -1,0 +1,16 @@
+# .dockerignore
+
+.DS_Store
+.env.local
+.git
+.next
+.vercel
+*.pem
+*.tsbuildinfo
+coverage
+node_modules
+npm-debug.log*
+out
+README.md
+yarn-debug.log*
+yarn-error.log*
