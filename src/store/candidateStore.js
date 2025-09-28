@@ -109,10 +109,11 @@ const useCandidateStore = create(
           },
         })),
 
-      // *** FIX IS HERE: This action now saves the result without clearing the current session ***
+      // *** FIX: Prevent duplicate candidates and ensure proper archiving ***
       setFinalAnalysisAndArchive: (score, summary) => {
         const { currentCandidate, allCandidates } = get();
 
+        // Create the final candidate with analysis results
         const finalCandidate = {
           ...currentCandidate,
           interview: {
@@ -122,8 +123,26 @@ const useCandidateStore = create(
           },
         };
 
+        // *** CRITICAL FIX: Check if candidate already exists before adding ***
+        const existingCandidateIndex = allCandidates.findIndex(
+          (candidate) => candidate.id === currentCandidate.id
+        );
+
+        let updatedAllCandidates;
+
+        if (existingCandidateIndex !== -1) {
+          // Update existing candidate
+          updatedAllCandidates = [...allCandidates];
+          updatedAllCandidates[existingCandidateIndex] = finalCandidate;
+          console.log("Updated existing candidate in dashboard");
+        } else {
+          // Add new candidate only if it doesn't exist
+          updatedAllCandidates = [...allCandidates, finalCandidate];
+          console.log("Added new candidate to dashboard");
+        }
+
         set({
-          allCandidates: [...allCandidates, finalCandidate], // Add to dashboard list
+          allCandidates: updatedAllCandidates,
           currentCandidate: finalCandidate, // Keep the completed data in the current view
         });
       },
@@ -132,7 +151,7 @@ const useCandidateStore = create(
       setLoading: (loading) => set({ isLoading: loading }),
       setError: (error) => set({ error, isLoading: false }),
 
-      // This action is now called manually by the user
+      // This action is called manually by the user to start a new session
       clearData: () =>
         set({
           currentCandidate: {
@@ -149,10 +168,45 @@ const useCandidateStore = create(
             },
           },
         }),
+
+      // *** NEW: Helper action to remove duplicate candidates (if any exist) ***
+      removeDuplicateCandidates: () => {
+        const { allCandidates } = get();
+
+        // Create a Map to track unique candidates by ID
+        const uniqueCandidatesMap = new Map();
+
+        allCandidates.forEach((candidate) => {
+          if (candidate.id && !uniqueCandidatesMap.has(candidate.id)) {
+            uniqueCandidatesMap.set(candidate.id, candidate);
+          }
+        });
+
+        const uniqueCandidates = Array.from(uniqueCandidatesMap.values());
+
+        // Only update if duplicates were found
+        if (uniqueCandidates.length !== allCandidates.length) {
+          console.log(
+            `Removed ${
+              allCandidates.length - uniqueCandidates.length
+            } duplicate candidates`
+          );
+          set({ allCandidates: uniqueCandidates });
+        }
+      },
     }),
     {
       name: "ai-interview-storage",
       storage: createJSONStorage(() => localStorage),
+      // *** FIX: Add onRehydrateStorage to clean up duplicates on app load ***
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          // Clean up any existing duplicates when the app loads
+          setTimeout(() => {
+            state.removeDuplicateCandidates?.();
+          }, 100);
+        }
+      },
     }
   )
 );
