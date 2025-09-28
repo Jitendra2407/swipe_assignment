@@ -1,30 +1,10 @@
+
 import { NextResponse } from "next/server";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// This is a placeholder for a real AI API call.
-// Replace this function with a call to a service like OpenAI or Gemini.
-const getMockAIAnalysis = (transcript) => {
-  // Simulate a delay to mimic a real API call
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      const score = Math.floor(Math.random() * (95 - 65 + 1) + 65); // Random score between 65 and 95
-      let summary =
-        "The candidate showed a solid understanding of fundamental concepts. ";
-
-      if (score > 90) {
-        summary +=
-          "They provided detailed and accurate answers, especially on the harder questions, demonstrating deep expertise.";
-      } else if (score > 75) {
-        summary +=
-          "Performance was strong on easy and medium questions, but there was some hesitation on the more complex topics. Overall, a strong performance.";
-      } else {
-        summary +=
-          "While the candidate has a good grasp of the basics, they struggled with the medium and hard questions. Further study on advanced topics is recommended.";
-      }
-
-      resolve({ score, summary });
-    }, 2500); // 2.5 second delay
-  });
-};
+// Initialize the Gemini client with your API key
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 export async function POST(req) {
   try {
@@ -36,42 +16,57 @@ export async function POST(req) {
         { status: 400 }
       );
     }
+    if (!process.env.GEMINI_API_KEY) {
+      return NextResponse.json(
+        { success: false, error: "Gemini API key is not configured." },
+        { status: 500 }
+      );
+    }
 
     // Format the transcript for the AI
     const transcript = questions
       .map(
         (q, i) =>
           `Question ${i + 1} (${q.difficulty}): ${q.text}\nAnswer ${i + 1}: ${
-            answers[i]
+            answers[i] || "No answer provided."
           }\n`
       )
       .join("\n");
 
-    // --- REAL AI API CALL WOULD GO HERE ---
-    // Example using OpenAI's SDK (you would need to install and configure it)
-    /*
+    // Construct the prompt for the AI
     const prompt = `
-      You are an expert technical interviewer for a Full-Stack (React/Node.js) developer position. 
-      Analyze the following interview transcript and provide a final score out of 100 and a brief summary of the candidate's performance.
-      
-      Transcript:
-      ${transcript}
+      You are an expert technical interviewer for a Full-Stack developer position specializing in React and Node.js.
+      Your task is to analyze the following interview transcript.
 
-      Provide your response in a JSON format with two keys: "score" (a number) and "summary" (a string of 2-3 sentences).
+      Transcript:
+      ---
+      ${transcript}
+      ---
+
+      Based on the transcript, please provide the following in a raw JSON format:
+      1. A "score" out of 100. Be critical. A perfect score should be rare. Consider the difficulty of the question and the quality of the answer. A non-answer should receive a very low score for that question.
+      2. A "summary" (a string of 2-3 sentences) of the candidate's performance, highlighting their strengths and areas for improvement.
+
+      Your response MUST be a valid JSON object with ONLY the keys "score" and "summary". For example:
+      {
+        "score": 82,
+        "summary": "The candidate demonstrates a strong grasp of fundamental React concepts but could improve their understanding of advanced Node.js topics. Their problem-solving approach is logical, but they seemed to struggle under the time constraints of the harder questions."
+      }
     `;
 
-    const response = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" },
-    });
-    
-    const analysis = JSON.parse(response.choices[0].message.content);
-    */
-    // --- END OF REAL AI CALL EXAMPLE ---
+    // Call the Gemini API
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
 
-    // Using the mock function for now
-    const analysis = await getMockAIAnalysis(transcript);
+    // Clean the response to ensure it's valid JSON
+    const cleanedText = text
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
+
+    // Parse the JSON response from the AI
+    const analysis = JSON.parse(cleanedText);
 
     return NextResponse.json({ success: true, ...analysis });
   } catch (error) {
