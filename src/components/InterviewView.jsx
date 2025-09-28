@@ -14,18 +14,20 @@
 
 // const InterviewView = () => {
 //   const {
-//     interview,
+//     currentCandidate,
 //     startInterview,
 //     addQuestion,
 //     submitAnswer,
 //     endInterview,
 //     setScoreAndSummary,
+//     archiveCurrentInterview,
 //   } = useCandidateStore();
 
 //   const [isLoading, setIsLoading] = useState(false);
 //   const [currentAnswer, setCurrentAnswer] = useState("");
 //   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+//   const { interview } = currentCandidate;
 //   const { status, questions, answers, currentQuestionIndex, score, summary } =
 //     interview;
 
@@ -77,6 +79,16 @@
 //     };
 //     analyzeResults();
 //   }, [status, questions, answers, score, setScoreAndSummary]);
+
+//   // New effect to archive the interview
+//   useEffect(() => {
+//     if (status === "completed" && score > 0 && !isAnalyzing) {
+//       const timer = setTimeout(() => {
+//         archiveCurrentInterview();
+//       }, 5000); // Wait 5 seconds before resetting the UI
+//       return () => clearTimeout(timer);
+//     }
+//   }, [status, score, isAnalyzing, archiveCurrentInterview]);
 
 //   useEffect(() => {
 //     if (status === "in-progress" && questions.length < INTERVIEW_FLOW.length) {
@@ -158,6 +170,9 @@
 //           </h3>
 //           <p className="mt-2 text-gray-600 max-w-xl mx-auto">{summary}</p>
 //         </div>
+//         <p className="mt-6 text-sm text-gray-400 animate-pulse">
+//           This page will reset for the next candidate in a few seconds...
+//         </p>
 //       </div>
 //     );
 //   }
@@ -220,6 +235,7 @@
 
 // export default InterviewView;
 
+
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import useCandidateStore from "../store/candidateStore";
@@ -241,8 +257,7 @@ const InterviewView = () => {
     addQuestion,
     submitAnswer,
     endInterview,
-    setScoreAndSummary,
-    archiveCurrentInterview,
+    finalizeAndArchiveInterview, // *** Use the new, combined action ***
   } = useCandidateStore();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -290,7 +305,11 @@ const InterviewView = () => {
           });
           const result = await response.json();
           if (result.success) {
-            setScoreAndSummary(result.score, result.summary);
+            // *** FIX IS HERE: Call the new action ***
+            // Use a timeout so the user can see their score before the UI resets
+            setTimeout(() => {
+              finalizeAndArchiveInterview(result.score, result.summary);
+            }, 5000); // Wait 5 seconds
           }
         } catch (error) {
           console.error("Failed to analyze results:", error);
@@ -300,17 +319,7 @@ const InterviewView = () => {
       }
     };
     analyzeResults();
-  }, [status, questions, answers, score, setScoreAndSummary]);
-
-  // New effect to archive the interview
-  useEffect(() => {
-    if (status === "completed" && score > 0 && !isAnalyzing) {
-      const timer = setTimeout(() => {
-        archiveCurrentInterview();
-      }, 5000); // Wait 5 seconds before resetting the UI
-      return () => clearTimeout(timer);
-    }
-  }, [status, score, isAnalyzing, archiveCurrentInterview]);
+  }, [status, questions, answers, score, finalizeAndArchiveInterview]);
 
   useEffect(() => {
     if (status === "in-progress" && questions.length < INTERVIEW_FLOW.length) {
@@ -363,7 +372,8 @@ const InterviewView = () => {
   }
 
   if (status === "completed") {
-    if (isAnalyzing) {
+    if (isAnalyzing || score === 0) {
+      // Show analyzing state until score is set
       return (
         <div className="text-center p-8 bg-white rounded-lg shadow-md">
           <div className="animate-pulse text-2xl font-bold text-gray-700">
