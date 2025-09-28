@@ -4,8 +4,11 @@
 import useCandidateStore from "../store/candidateStore";
 
 const CandidateInfo = () => {
-  const { candidateData, clearData } = useCandidateStore();
-  const { name, email, phone, rawText } = candidateData;
+  // const { candidateData, clearData } = useCandidateStore();
+  // const { name, email, phone, rawText } = candidateData;
+  const { currentCandidate, clearData } = useCandidateStore();
+  const { name, email, phone, rawText } = currentCandidate?.candidateData ?? {};
+
 
   // Don't render if no data
   if (!name && !email && !phone && !rawText) {

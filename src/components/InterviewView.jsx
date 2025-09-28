@@ -1,0 +1,343 @@
+"use client";
+import { useState, useEffect, useCallback } from "react";
+import useCandidateStore from "../store/candidateStore";
+import Timer from "./Timer";
+
+const INTERVIEW_FLOW = [
+  { difficulty: "Easy", duration: 20 },
+  { difficulty: "Easy", duration: 20 },
+  { difficulty: "Medium", duration: 60 },
+  { difficulty: "Medium", duration: 60 },
+  { difficulty: "Hard", duration: 120 },
+  { difficulty: "Hard", duration: 120 },
+];
+
+const InterviewView = () => {
+  const {
+    interview,
+    startInterview,
+    addQuestion,
+    submitAnswer,
+    endInterview,
+    setScoreAndSummary,
+  } = useCandidateStore();
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentAnswer, setCurrentAnswer] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const { status, questions, answers, currentQuestionIndex, score, summary } =
+    interview;
+
+  const fetchQuestion = useCallback(async () => {
+    if (status !== "in-progress" || questions.length >= INTERVIEW_FLOW.length)
+      return;
+
+    setIsLoading(true);
+    const { difficulty } = INTERVIEW_FLOW[questions.length];
+
+    try {
+      const response = await fetch("/api/generate-question", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ difficulty }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        addQuestion({ text: data.question, difficulty });
+      }
+    } catch (error) {
+      console.error("Failed to fetch question:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [status, questions.length, addQuestion]);
+
+  // Effect to analyze results after interview completion
+  useEffect(() => {
+    const analyzeResults = async () => {
+      if (status === "completed" && score === 0) {
+        setIsAnalyzing(true);
+        try {
+          const response = await fetch("/api/analyze-interview", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ questions, answers }),
+          });
+          const result = await response.json();
+          if (result.success) {
+            setScoreAndSummary(result.score, result.summary);
+          }
+        } catch (error) {
+          console.error("Failed to analyze results:", error);
+        } finally {
+          setIsAnalyzing(false);
+        }
+      }
+    };
+    analyzeResults();
+  }, [status, questions, answers, score, setScoreAndSummary]);
+
+  useEffect(() => {
+    if (status === "in-progress" && questions.length < INTERVIEW_FLOW.length) {
+      if (questions.length === currentQuestionIndex) {
+        fetchQuestion();
+      }
+    } else if (
+      status === "in-progress" &&
+      currentQuestionIndex >= INTERVIEW_FLOW.length
+    ) {
+      endInterview();
+    }
+  }, [
+    status,
+    fetchQuestion,
+    questions.length,
+    currentQuestionIndex,
+    endInterview,
+  ]);
+
+  const handleAnswerSubmit = (isTimeout = false) => {
+    const answerToSubmit =
+      isTimeout && currentAnswer === "" ? "No answer provided" : currentAnswer;
+    submitAnswer(answerToSubmit);
+    setCurrentAnswer("");
+  };
+
+  const handleFormSubmit = (e) => {
+    e.preventDefault();
+    handleAnswerSubmit();
+  };
+
+  const currentFlowStep = INTERVIEW_FLOW[currentQuestionIndex];
+  const currentQuestion = questions[currentQuestionIndex];
+
+  if (status === "idle") {
+    return (
+      <div className="text-center p-8 bg-white rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold mb-4">
+          Ready to start your interview?
+        </h2>
+        <button
+          onClick={startInterview}
+          className="px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition"
+        >
+          Start Interview
+        </button>
+      </div>
+    );
+  }
+
+  if (status === "completed") {
+    if (isAnalyzing) {
+      return (
+        <div className="text-center p-8 bg-white rounded-lg shadow-md">
+          <div className="animate-pulse text-2xl font-bold text-gray-700">
+            Analyzing your results...
+          </div>
+          <p className="mt-2 text-gray-500">
+            The AI is reviewing your answers to generate a score and summary.
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div className="text-center p-8 bg-white rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold text-green-600 mb-4">
+          Interview Completed!
+        </h2>
+        <div className="mb-6">
+          <p className="text-lg text-gray-700">Your Final Score:</p>
+          <p className="text-6xl font-extrabold text-blue-600 my-2">
+            {score}/100
+          </p>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800">
+            AI Performance Summary:
+          </h3>
+          <p className="mt-2 text-gray-600 max-w-xl mx-auto">{summary}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 bg-white rounded-lg shadow-xl">
+      {isLoading && !currentQuestion ? (
+        <div className="text-center p-10">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Generating next question...</p>
+        </div>
+      ) : currentQuestion ? (
+        <>
+          <div className="flex justify-between items-start mb-4">
+            <div>
+              <span
+                className={`px-3 py-1 text-sm font-medium rounded-full ${
+                  currentQuestion.difficulty === "Easy"
+                    ? "bg-green-100 text-green-800"
+                    : currentQuestion.difficulty === "Medium"
+                    ? "bg-yellow-100 text-yellow-800"
+                    : "bg-red-100 text-red-800"
+                }`}
+              >
+                {currentQuestion.difficulty} Question {currentQuestionIndex + 1}
+                /{INTERVIEW_FLOW.length}
+              </span>
+              <p className="mt-4 text-lg text-gray-800">
+                {currentQuestion.text}
+              </p>
+            </div>
+            <Timer
+              key={currentQuestionIndex}
+              duration={currentFlowStep.duration}
+              onTimeout={() => handleAnswerSubmit(true)}
+              questionIndex={currentQuestionIndex}
+            />
+          </div>
+          <form onSubmit={handleFormSubmit}>
+            <textarea
+              value={currentAnswer}
+              onChange={(e) => setCurrentAnswer(e.target.value)}
+              placeholder="Your answer..."
+              className="w-full h-40 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <div className="text-right mt-4">
+              <button
+                type="submit"
+                className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+              >
+                Submit Answer
+              </button>
+            </div>
+          </form>
+        </>
+      ) : null}
+    </div>
+  );
+};
+
+export default InterviewView;
+
+
+
+// "use client";
+// import { useState, useEffect, useCallback } from "react";
+// import useCandidateStore from "../store/candidateStore";
+// import Timer from "./Timer";
+
+// // ... (INTERVIEW_FLOW constant remains the same)
+
+// const InterviewView = () => {
+//   const {
+//     currentCandidate,
+//     startInterview,
+//     addQuestion,
+//     submitAnswer,
+//     endInterview,
+//     setScoreAndSummary,
+//     archiveCurrentInterview, // Import new action
+//   } = useCandidateStore();
+
+//   // ... (useState hooks remain the same)
+  
+//   const { interview } = currentCandidate;
+//   const { status, questions, answers, currentQuestionIndex, score, summary } = interview;
+
+//   // ... (fetchQuestion function remains the same)
+
+//   // Effect to analyze results after interview completion
+//   useEffect(() => {
+//     const analyzeResults = async () => {
+//       if (status === "completed" && score === 0) {
+//         setIsAnalyzing(true);
+//         try {
+//           const response = await fetch('/api/analyze-interview', {
+//             method: 'POST',
+//             headers: { 'Content-Type': 'application/json' },
+//             body: JSON.stringify({ questions, answers }),
+//           });
+//           const result = await response.json();
+//           if(result.success) {
+//             setScoreAndSummary(result.score, result.summary);
+//           }
+//         } catch (error) {
+//           console.error("Failed to analyze results:", error);
+//         } finally {
+//           setIsAnalyzing(false);
+//         }
+//       }
+//     };
+//     analyzeResults();
+//   }, [status, questions, answers, score, setScoreAndSummary]);
+  
+//   // New effect to archive the interview
+//   useEffect(() => {
+//     if (status === 'completed' && score > 0 && !isAnalyzing) {
+//         // Use a timeout to allow the user to see their score before the UI resets
+//         const timer = setTimeout(() => {
+//             archiveCurrentInterview();
+//         }, 5000); // Wait 5 seconds
+//         return () => clearTimeout(timer);
+//     }
+//   }, [status, score, isAnalyzing, archiveCurrentInterview]);
+
+
+//     return (
+//     <div className="p-6 bg-white rounded-lg shadow-xl">
+//       {isLoading && !currentQuestion ? (
+//         <div className="text-center p-10">
+//           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+//           <p className="mt-4 text-gray-600">Generating next question...</p>
+//         </div>
+//       ) : currentQuestion ? (
+//         <>
+//           <div className="flex justify-between items-start mb-4">
+//             <div>
+//               <span
+//                 className={`px-3 py-1 text-sm font-medium rounded-full ${
+//                   currentQuestion.difficulty === "Easy"
+//                     ? "bg-green-100 text-green-800"
+//                     : currentQuestion.difficulty === "Medium"
+//                     ? "bg-yellow-100 text-yellow-800"
+//                     : "bg-red-100 text-red-800"
+//                 }`}
+//               >
+//                 {currentQuestion.difficulty} Question {currentQuestionIndex + 1}
+//                 /{INTERVIEW_FLOW.length}
+//               </span>
+//               <p className="mt-4 text-lg text-gray-800">
+//                 {currentQuestion.text}
+//               </p>
+//             </div>
+//             <Timer
+//               key={currentQuestionIndex}
+//               duration={currentFlowStep.duration}
+//               onTimeout={() => handleAnswerSubmit(true)}
+//               questionIndex={currentQuestionIndex}
+//             />
+//           </div>
+//           <form onSubmit={handleFormSubmit}>
+//             <textarea
+//               value={currentAnswer}
+//               onChange={(e) => setCurrentAnswer(e.target.value)}
+//               placeholder="Your answer..."
+//               className="w-full h-40 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+//             />
+//             <div className="text-right mt-4">
+//               <button
+//                 type="submit"
+//                 className="px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+//               >
+//                 Submit Answer
+//               </button>
+//             </div>
+//           </form>
+//         </>
+//       ) : null}
+//     </div>
+//   );
+// };
+
+// export default InterviewView;
