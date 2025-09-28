@@ -6,7 +6,7 @@
 //   persist(
 //     (set, get) => ({
 //       // State
-//       allCandidates: [], // This will store all completed interviews
+//       allCandidates: [],
 //       currentCandidate: {
 //         id: null,
 //         candidateData: { name: "", email: "", phone: "", rawText: "" },
@@ -62,22 +62,21 @@
 //             ...state.currentCandidate,
 //             interview: {
 //               ...state.currentCandidate.interview,
-//               status: "in-progress",
+//               status: "preparing", // New status for generating questions
 //               currentQuestionIndex: 0,
 //             },
 //           },
 //         })),
 
-//       addQuestion: (question) =>
+//       // *** FIX IS HERE: New action to set all questions at once ***
+//       setInterviewQuestions: (questions) =>
 //         set((state) => ({
 //           currentCandidate: {
 //             ...state.currentCandidate,
 //             interview: {
 //               ...state.currentCandidate.interview,
-//               questions: [
-//                 ...state.currentCandidate.interview.questions,
-//                 question,
-//               ],
+//               questions: questions,
+//               status: "in-progress", // Questions are ready, start the interview
 //             },
 //           },
 //         })),
@@ -111,39 +110,32 @@
 //           },
 //         })),
 
-//       setScoreAndSummary: (score, summary) =>
-//         set((state) => ({
-//           currentCandidate: {
-//             ...state.currentCandidate,
-//             interview: { ...state.currentCandidate.interview, score, summary },
-//           },
-//         })),
-
-//       // --- New Action to Archive Interview ---
-//       archiveCurrentInterview: () => {
+//       finalizeAndArchiveInterview: (score, summary) => {
 //         const { currentCandidate, allCandidates } = get();
-//         if (
-//           currentCandidate.interview.status === "completed" &&
-//           currentCandidate.interview.score > 0
-//         ) {
-//           set({
-//             allCandidates: [...allCandidates, currentCandidate],
-//             // Reset for the next candidate
-//             currentCandidate: {
-//               id: null,
-//               candidateData: { name: "", email: "", phone: "", rawText: "" },
-//               messages: [],
-//               interview: {
-//                 questions: [],
-//                 answers: [],
-//                 currentQuestionIndex: 0,
-//                 status: "idle",
-//                 score: 0,
-//                 summary: "",
-//               },
+//         const finalCandidate = {
+//           ...currentCandidate,
+//           interview: {
+//             ...currentCandidate.interview,
+//             score,
+//             summary,
+//           },
+//         };
+//         set({
+//           allCandidates: [...allCandidates, finalCandidate],
+//           currentCandidate: {
+//             id: null,
+//             candidateData: { name: "", email: "", phone: "", rawText: "" },
+//             messages: [],
+//             interview: {
+//               questions: [],
+//               answers: [],
+//               currentQuestionIndex: 0,
+//               status: "idle",
+//               score: 0,
+//               summary: "",
 //             },
-//           });
-//         }
+//           },
+//         });
 //       },
 
 //       // Loading / error actions
@@ -168,8 +160,8 @@
 //         }),
 //     }),
 //     {
-//       name: "ai-interview-storage", // Name for the localStorage item
-//       storage: createJSONStorage(() => localStorage), // Use localStorage
+//       name: "ai-interview-storage",
+//       storage: createJSONStorage(() => localStorage),
 //     }
 //   )
 // );
@@ -241,22 +233,21 @@ const useCandidateStore = create(
             ...state.currentCandidate,
             interview: {
               ...state.currentCandidate.interview,
-              status: "in-progress",
+              status: "preparing", // New status for generating questions
               currentQuestionIndex: 0,
             },
           },
         })),
 
-      addQuestion: (question) =>
+      // *** FIX IS HERE: New action to set all questions at once ***
+      setInterviewQuestions: (questions) =>
         set((state) => ({
           currentCandidate: {
             ...state.currentCandidate,
             interview: {
               ...state.currentCandidate.interview,
-              questions: [
-                ...state.currentCandidate.interview.questions,
-                question,
-              ],
+              questions: questions,
+              status: "in-progress", // Questions are ready, start the interview
             },
           },
         })),
@@ -290,11 +281,8 @@ const useCandidateStore = create(
           },
         })),
 
-      // *** FIX IS HERE: Combined action to prevent race condition ***
       finalizeAndArchiveInterview: (score, summary) => {
         const { currentCandidate, allCandidates } = get();
-
-        // 1. Create the final, complete candidate record with the score
         const finalCandidate = {
           ...currentCandidate,
           interview: {
@@ -303,12 +291,9 @@ const useCandidateStore = create(
             summary,
           },
         };
-
-        // 2. Update the state by adding to allCandidates and resetting the current one
         set({
           allCandidates: [...allCandidates, finalCandidate],
           currentCandidate: {
-            // Reset for the next candidate
             id: null,
             candidateData: { name: "", email: "", phone: "", rawText: "" },
             messages: [],
