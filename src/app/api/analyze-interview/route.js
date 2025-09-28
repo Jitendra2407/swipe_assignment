@@ -5,6 +5,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 // Initialize the Gemini client with your API key
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+// const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
 
 export async function POST(req) {
   try {
