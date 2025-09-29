@@ -1,20 +1,3 @@
-You've correctly identified that the `GEMINI_API_KEY` is needed when running the Docker container. You also brought up a great question about why the diagrams weren't rendering.
-
-The issue is that the Mermaid syntax in your `README.md` file was missing the language identifier in the code block. To fix this, I've changed the start of the code blocks from:
-
-```
-´´´
-```
-
-to:
-´´´mermaid
-´´´
-This tells GitHub to render the code block as a Mermaid diagram. I've also updated the Docker instructions to include the environment variable for the Gemini API key.
-
-Here is the updated `README.md` file:
-
------
-
 # AI Interview Assistant
 
 Welcome to the AI Interview Assistant, a web application designed to streamline the initial stages of the technical interview process. This tool automates resume parsing, conducts an AI-powered interview with candidates, and provides insightful analysis for interviewers. The application is built with Next.js and leverages the power of Google's Gemini AI for generating interview questions and analyzing responses.
